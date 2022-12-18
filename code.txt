@@ -1,0 +1,295 @@
+=== Kod ===
+
+**Uwaga: ** Poniższe próbki kodu używają makro do działań na dynamicznych tabelach (new_arr, arr_at, arr_push etc.)
+
+**Uwaga: ** Program nie był **dokładnie** sprawdzany pod względem wycieku pamięci! Być może gdzieś trzeba zwolnić dynamiczną tabelę, a nie zostało to zrobione :) 
+
+**Pełen kod źródłowy dostępny jest tutaj: link**
+
+
+== Generowanie nowego problemu ==
+
+
+<code c>
+Array* points = new_arr();
+Array* obstacles = new_arr();
+int n = 3;
+int o = 3;
+for (int i = 0; i<n; i++) {
+    arr_push(Vector2, points, ((Vector2){(float)GetRandomValue(50,1050), (float)GetRandomValue(50, 1050)}));
+}
+for (int i = 0; i<o; i++) {
+    Vector2 mid = {(float)GetRandomValue(250,850), (float)GetRandomValue(250, 850)};
+    Array* tri = new_arr();
+    arr_push(Vector2, tri, ((Vector2){(float)GetRandomValue(-100,-50)+mid.x, (float)GetRandomValue(0, 100)+mid.y}));
+    arr_push(Vector2, tri, ((Vector2){(float)GetRandomValue(-49,49)+mid.x, (float)GetRandomValue(-100, 0)+mid.y}));
+    arr_push(Vector2, tri, ((Vector2){(float)GetRandomValue(50,100)+mid.x, (float)GetRandomValue(0, 100)+mid.y}));
+    arr_push(Vector2, tri, mid);
+    arr_push(Array*, obstacles, tri);
+}
+
+</code>
+
+== Sprawdzanie danej permutacji ==
+
+<code c>
+bool is_sol_valid(Array* points, Array* obstacles, Array* sol){
+    int o = obstacles->len;
+    int n = sol->len;
+    if (sol->len < points->len) return false;
+    Array* obs;
+    Vector2 p1, p2, p3, p4, p5;
+    for (int i = 0; (i+1)<n; i++){
+        p1 = arr_at(Vector2, points, arr_at(int, sol, i));
+        p2 = arr_at(Vector2, points, arr_at(int, sol, (i+1)));
+        for (int j = 0; (j+1)<n; j++){
+            if ((i==j || i==j+1 || i+1==j)) continue;
+            p3 = arr_at(Vector2, points, arr_at(int, sol, j));
+            p4 = arr_at(Vector2, points, arr_at(int, sol, (j+1)));
+            if (CheckCollisionLines(p1, p2, p3, p4, NULL)){
+                return false;
+            }
+        }
+        for (int j = 0; j<o; j++){
+            obs = arr_at(Array*, obstacles, j);
+            p3 = arr_at(Vector2, obs, 0);
+            p4 = arr_at(Vector2, obs, 1);
+            p5 = arr_at(Vector2, obs, 2);
+            if (CheckCollisionLines(p1, p2, p3, p4, NULL) || CheckCollisionLines(p1, p2, p4, p5, NULL) || CheckCollisionLines(p1, p2, p3, p5, NULL)){
+                return false;
+            }
+        }
+    }
+    return true;
+}
+</code>
+
+== BRUTE FORCE ==
+
+<code c>
+Array* brute_force(Array* points, Array* obstacles){
+    int n = points->len;
+    Array* ans = new_arr();
+    for (int i = 0; i<n; i++)
+        arr_push(Array*, ans, new_arr());
+    Array* combs = new_arr();
+    Array* new_combs = new_arr();
+    Array* sol;
+    Array* pts = new_arr();
+    for (int i = 0; i<n; i++){
+        arr_push(int, pts, i);
+    }
+    for (int i = 0; i<n; i++){
+        Array* st = new_arr_len(Array*, 2);
+        Array* used = new_arr();
+        Array* unused = arr_cpy(int, pts);
+        arr_push(int, used, i);
+        arr_del(int, unused, i);
+        arr_push(Array*, st, used);
+        arr_push(Array*, st, unused);
+        arr_push(Array*, combs, st);
+    }
+    Array* comb;
+    Array* n_used;
+    Array* n_unused;
+    while(combs->len > 0){
+        for (arr_index i = 0; i<combs->len; i++){
+            comb = arr_at(Array*, combs, i);
+            Array* unused = arr_pop(Array*, comb);
+            Array* used = arr_pop(Array*, comb);
+            free_arr(comb);
+            if (unused->len == 0){
+                arr_push(Array*, ans, used);
+                free_arr(unused);
+                continue;
+            }
+            for (arr_index j = 0; j<unused->len; j++){
+                Array* new_comb = new_arr();
+                n_used =  arr_cpy(Array*, used);
+                n_unused = arr_cpy(Array*, unused);
+                arr_push(int, n_used, arr_at(int, unused, j));
+                arr_del(int, n_unused, j);
+                arr_push(Array*, new_comb, n_used);
+                arr_push(Array*, new_comb, n_unused);
+                arr_push(Array*, new_combs, new_comb);
+            }
+            free_arr(used);
+            free_arr(unused);
+        }
+        free_arr(combs);
+        combs = new_combs;
+        new_combs = new_arr();
+    }
+    free_arr(combs);
+    free_arr(new_combs);
+    free_arr(pts);
+    //Filter the answer
+    ans = only_valid_ans(ans, points, obstacles);
+    ans = del_duplicates(ans, n);
+    return ans;
+}
+</code>
+
+== Usuwanie zbędnych odpowiedzi ==
+
+<code c>
+Array* del_duplicates(Array* ans, int n){
+    Array* new_ans = new_arr();
+    for (int i = 0; i<n; i++) arr_push(Array*, new_ans, new_arr());
+    Array* done = new_arr_len(bool, n);
+    Array* sol;
+    bool sol_used;
+    int start, end;
+    int satisfied = 0;
+    while(ans->len>0 && satisfied < n){
+        sol = arr_pop(Array*, ans);
+        if (sol->len < n){
+            free_arr(sol);
+            continue;
+        }
+        sol_used = false;
+        start = arr_first(int, sol);
+        end = arr_last(int, sol);
+        if (!arr_at(bool, done, start)){
+            arr_set(bool, done, start, true);
+            arr_set(Array*, new_ans, start, sol);
+            sol_used = true;
+            satisfied++;
+        }
+        if (!arr_at(bool, done, end)){
+            arr_set(bool, done, end, true);
+            arr_set(Array*, new_ans, end, sol);
+            sol_used = true;
+            satisfied++;
+        }
+        if (!sol_used){
+            free_arr(sol);
+        }
+    }
+    printf("BRUTE FORCE result:\n%d/%d satisfied!\n", satisfied, n);
+    return new_ans;
+}
+</code>
+
+== BRUTE DFS ==
+
+<code c>
+bool is_lastly_added_ok(Array* points, Array* obstacles, Array* sol){ //O(n) instead of O(n^2), only checks last addition ofc.
+    int n = sol->len;
+    int o = obstacles->len;
+    if (n<=1) return true;
+    Array* obs;
+    Vector2 p1, p2, p3, p4, p5;
+    p1 = arr_at(Vector2, points, arr_at(int, sol, n-2));
+    p2 = arr_at(Vector2, points, arr_at(int, sol, n-1));
+    for (int i = 0; (i+1)<(n-2); i++){
+        p3 = arr_at(Vector2, points, arr_at(int, sol, i));
+        p4 = arr_at(Vector2, points, arr_at(int, sol, (i+1)));
+        if (CheckCollisionLines(p1, p2, p3, p4, NULL)){
+            return false;
+        }
+    }
+    for (int i = 0; i<o; i++){
+        obs = arr_at(Array*, obstacles, i);
+        p3 = arr_at(Vector2, obs, 0);
+        p4 = arr_at(Vector2, obs, 1);
+        p5 = arr_at(Vector2, obs, 2);
+        if (CheckCollisionLines(p1, p2, p3, p4, NULL) || CheckCollisionLines(p1, p2, p4, p5, NULL) || CheckCollisionLines(p1, p2, p3, p5, NULL)){
+            return false;
+        }
+    }
+    return true;
+}
+
+Array* bfs_brute_rec(Array* points, Array* obstacles, Array* st){
+    int n = points->len;
+    Array* sol;
+    Array* unused = arr_pop(Array*, st);
+    Array* used = arr_pop(Array*, st);
+    if (!is_lastly_added_ok(points, obstacles, used)){
+        return new_arr();
+    }
+    if (unused->len == 0){
+        sol = arr_cpy(int, used);
+        if (is_sol_valid(points, obstacles, sol)){
+            return sol;
+        }else{
+            free_arr(sol);
+            return new_arr();
+        }
+    }else{
+        Array* n_used;
+        Array* n_unused;
+        Array* n_st;
+        for (int i = 0; i<unused->len; i++){
+            n_st = new_arr();
+            n_used = arr_cpy(int, used);
+            n_unused = arr_cpy(int, unused);
+            int p = arr_at(int, n_unused, i);
+            arr_push(int, n_used, p);
+            arr_del(int, n_unused, i);
+            arr_push(Array*, n_st, n_used);
+            arr_push(Array*, n_st, n_unused);
+            sol = bfs_brute_rec(points, obstacles, n_st);
+            free_arr(n_st);
+            if (sol->len > 0){
+                return sol;
+            }else{
+                free_arr(sol);
+            }
+        }
+        return new_arr();
+    }
+}
+
+Array* brute_dfs(Array* points, Array* obstacles){
+    //Inspect latest added answer, skip duplicates. Should be faster by A LOT than brute_force
+    Array* sol;
+    Array* st;
+    Array* used;
+    Array* unused;
+    int n = points->len;
+    Array* done = new_arr_len(bool, n);
+    Array* ans = new_arr();
+    for (int i = 0; i<n; i++)
+        arr_push(Array*, ans, new_arr());
+    int satisfied = 0;
+    Array* pts = new_arr();
+    for (int i = 0; i<n; i++){
+        arr_push(int, pts, i);
+    }
+    for (int i = 0; i<n; i++){
+        if (arr_at(bool, done, i)) continue;
+        st = new_arr();
+        used = new_arr();
+        arr_push(int, used, i);
+        unused = arr_cpy(int, pts);
+        arr_del(int, unused, i);
+        arr_push(Array*, st, used);
+        arr_push(Array*, st, unused);
+        sol = bfs_brute_rec(points, obstacles, st);
+        if (sol->len > 0){
+            int lst = arr_last(int, sol);
+            if(!arr_at(bool, done, i)){
+                arr_set(Array*, ans, i, sol);
+                arr_set(bool, done, i, true);
+            }
+            if(!arr_at(bool, done, lst)){
+                arr_set(Array*, ans, lst, sol);
+                arr_set(bool, done, lst, true);
+            }
+        }else{
+            printf("BRUTE DFS failed to find any answer for point #%d\n", i);
+        }
+        satisfied = 0;
+        for (int j = 0; j<n; j++){
+            if (arr_at(bool, done, j))  satisfied++;
+        }
+        printf("BRUTE DFS result:\nSatisfied %d/%d\n", satisfied, n);
+        free_arr(st);
+        free_arr(unused);
+        free_arr(used);
+    }
+    return ans;
+}
+</code>

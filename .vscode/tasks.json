@@ -1,0 +1,21 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build C file",
+            "type": "shell",
+            "command": "gcc *.c -g -o inf-snake.exe -L lib/ -lraylib -lopengl32 -lgdi32 -lwinmm",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Clear",
+            "type": "shell",
+            "command": "clear"
+        }
+    ]
+}
